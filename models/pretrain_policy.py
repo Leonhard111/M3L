@@ -94,7 +94,7 @@ class DINOExtractor(BaseFeaturesExtractor):
         #observations = self.vit_layer.transformer(observations)
         #observations = torch.mean(observations, dim=1)
         #print(vt_torch['image'].shape)
-        vt_torch = torch.act((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=-1)
+        vt_torch = torch.cat((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=-1)
         vt_torch = self.dino_model(vt_torch)
         flattened = self.flatten(vt_torch)
 

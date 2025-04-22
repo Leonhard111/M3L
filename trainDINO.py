@@ -157,7 +157,9 @@ def main():
 
 
     encoder = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg')
-
+    for param in encoder.parameters():
+        param.requires_grad = False
+        
     # 创建DINOHead实例 - 调整输出维度
     dino_head_partial = partial(
         DINOHead, 
@@ -205,6 +207,7 @@ def main():
             "net_arch": dict(pi=[256, 256], vf=[256, 256]),
             "frame_stack": config.frame_stack,
         }
+
 
         # 创建PPO_DINO模型时，会自动调用dino.configure_optimizers
         model = PPO_DINO(

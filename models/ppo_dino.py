@@ -278,9 +278,9 @@ class PPO_DINO(OnPolicyAlgorithm):
         Update policy using the currently gathered rollout buffer.
         """
         # Switch to train mode (this affects batch norm / dropout)
-        self.policy.set_training_mode(True)
-        # Update optimizer learning rate
-        self._update_learning_rate(self.policy.optimizer)
+        # self.policy.set_training_mode(True)
+        # # Update optimizer learning rate
+        # self._update_learning_rate(self.policy.optimizer)
         
         # # 更新DINO优化器的学习率（如果有调度器）
         # if hasattr(self, 'dino_lr_scheduler') and self.dino_lr_scheduler is not None:
@@ -323,8 +323,8 @@ class PPO_DINO(OnPolicyAlgorithm):
                 self.policy.optimizer.zero_grad()
                 
                 # 加载数据
-                x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
-                x = torch.act((x['image'],x['tactile1'],x['tactile2']),dim=-1)
+                # x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+                # x = torch.cat((x['image'],x['tactile1'],x['tactile2']),dim=-1)
 
                 # 执行DINO的训练步骤
                 #dino_loss = self.dino.training_step(x, 0)
@@ -430,7 +430,7 @@ class PPO_DINO(OnPolicyAlgorithm):
         self.logger.record("train/loss", loss.item())
         self.logger.record("train/explained_variance", explained_var)
 
-        self.logger.record("train/dino_loss", dino_loss['loss'].item())
+        # self.logger.record("train/dino_loss", dino_loss['loss'].item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 
