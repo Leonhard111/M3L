@@ -56,7 +56,7 @@ class EarlyCNN(nn.Module):
         return self.conv4(x).flatten(2).transpose(1, 2)
     
 
-class VTMAE(nn.Module):
+class VTDINO(nn.Module):
     def __init__(
         self,
         *,
@@ -770,7 +770,7 @@ class VTT(nn.Module):
 
         self.to_latent = nn.Identity()
 
-class MAEExtractor(BaseFeaturesExtractor):
+class DINOExtractor(BaseFeaturesExtractor):
     """
     Feature extract that flatten the input.
     Used as a placeholder when feature extraction is not needed.
@@ -778,10 +778,10 @@ class MAEExtractor(BaseFeaturesExtractor):
     :param observation_space:
     """
 
-    def __init__(self, observation_space: gym.Space, mae_model, dim_embeddings, vision_only_control, frame_stack) -> None:
+    def __init__(self, observation_space: gym.Space, dino_model, dim_embeddings, vision_only_control, frame_stack) -> None:
         super().__init__(observation_space, dim_embeddings)
         self.flatten = nn.Flatten()
-        self.mae_model = mae_model
+        self.dino_model = dino_model
         
         self.running_buffer = {}
 
@@ -789,7 +789,7 @@ class MAEExtractor(BaseFeaturesExtractor):
 
         self.frame_stack = frame_stack
     
-        self.vit_layer = VTT(   # 
+        self.vit_layer = VTT(
             image_size = (64, 64), # not used
             tactile_size = (32, 32), # not used
             image_patch_size = 8, # not used
@@ -816,7 +816,7 @@ class MAEExtractor(BaseFeaturesExtractor):
         if torch.cuda.is_available():
             for key in vt_torch:
                 vt_torch[key] = vt_torch[key].to('cuda')
-        observations = self.mae_model.get_embeddings(vt_torch, eval=False, use_tactile=not self.vision_only_control)
+        observations = self.dino_model.get_embeddings(vt_torch, eval=False, use_tactile=not self.vision_only_control)
 
         observations = self.vit_layer.transformer(observations)
         observations = torch.mean(observations, dim=1)
@@ -825,9 +825,9 @@ class MAEExtractor(BaseFeaturesExtractor):
 
         return flattened
 
-class MAEPolicy(ActorCriticPolicy):              # 策略
+class DINOPolicy(ActorCriticPolicy):              # 策略
 
-    def __init__(
+    def __init__(   # ActorCriticPolicy初始化参数+DINOExtractor初始化参数
         self,
         observation_space: spaces.Space,
         action_space: spaces.Space,
@@ -845,6 +845,7 @@ class MAEPolicy(ActorCriticPolicy):              # 策略
         share_features_extractor: bool = True,
         normalize_images: bool = True,
         mae_model = None,            #MAE类型实例
+        dino_model = None,            #DINO类型实例
         dim_embeddings = 256,
         frame_stack = 1,
         vision_only_control = False,
@@ -853,12 +854,8 @@ class MAEPolicy(ActorCriticPolicy):              # 策略
     ):
        
 
-        features_extractor_class = MAEExtractor
-        features_extractor_kwargs = {   'mae_model': mae_model, 
-                                        'dim_embeddings': dim_embeddings, 
-                                        'vision_only_control': vision_only_control, 
-                                        'frame_stack': frame_stack
-                                     }
+        features_extractor_class = DINOExtractor
+        features_extractor_kwargs = {'dino_model': dino_model, 'dim_embeddings': dim_embeddings, 'vision_only_control': vision_only_control, 'frame_stack': frame_stack}
         ortho_init = False
 
         super().__init__(
@@ -890,7 +887,6 @@ class MAEPolicy(ActorCriticPolicy):              # 策略
         :return: action, value and log probability of the action
         """
         # Preprocess the observation if needed
-        # 这步就是features_extractor的forward
         features = self.extract_features(obs)
 
         if self.share_features_extractor:

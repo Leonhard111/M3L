@@ -21,7 +21,7 @@ import copy
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
-class PPO_MAE(OnPolicyAlgorithm):
+class PPO_DINO(OnPolicyAlgorithm):
     """
     Proximal Policy Optimization algorithm (PPO) (clip version)
 
@@ -106,8 +106,8 @@ class PPO_MAE(OnPolicyAlgorithm):
         verbose: int = 0,
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
-        mae = None,
-        mae_batch_size = 32,
+        dino = None,
+        dino_batch_size = 32,
         separate_optimizer = False,
         _init_setup_model: bool = True,
     ):
@@ -172,13 +172,52 @@ class PPO_MAE(OnPolicyAlgorithm):
         self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
 
-        self.mae_batch_size = mae_batch_size
+        self.dino_batch_size = dino_batch_size
         self.separate_optimizer = separate_optimizer
 
         if _init_setup_model:
             self._setup_model()
-            self.mae = mae
-            self.mae_optimizer = th.optim.Adam(self.mae.parameters(), lr=1e-4)
+            self.dino = dino
+            
+            # 配置DINO优化器 - 使用VTDINO的configure_optimizers
+            # 估算每个epoch的迭代次数
+            num_iterations_per_epoch = max(1, self.rollout_buffer.buffer_size // self.batch_size)
+            # 估算总epoch数(允许用户训练更长时间)
+            num_epochs = 1000  # 使用一个足够大的值，让VTDINO的scheduler能够正常工作
+            
+            # 调用VTDINO的configure_optimizers方法获取优化器和调度器
+            if hasattr(self.dino, 'configure_optimizers'):
+                try:
+                    dino_optimizer, lr_scheduler_dict, wd_scheduler_dict = self.dino.configure_optimizers(
+                        num_iterations_per_epoch=num_iterations_per_epoch,
+                        num_epochs=num_epochs
+                    )
+                    self.dino_optimizer = dino_optimizer
+                    
+                    # 保存调度器以便后续使用
+                    if lr_scheduler_dict is not None:
+                        self.dino_lr_scheduler = lr_scheduler_dict.get('scheduler')
+                    else:
+                        self.dino_lr_scheduler = None
+                        
+                    if wd_scheduler_dict is not None:
+                        self.dino_wd_scheduler = wd_scheduler_dict.get('wd_scheduler')
+                    else:
+                        self.dino_wd_scheduler = None
+                        
+                    if self.verbose > 0:
+                        print(f"Successfully configured DINO optimizer and scheduler from VTDINO class")
+                except Exception as e:
+                    # 如果配置失败，回退到简单的优化器
+                    print(f"Error configuring DINO optimizer from class: {e}. Using default optimizer.")
+                    self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
+                    self.dino_lr_scheduler = None
+                    self.dino_wd_scheduler = None
+            else:
+                # 如果DINO没有configure_optimizers方法，使用默认优化器
+                self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
+                self.dino_lr_scheduler = None
+                self.dino_wd_scheduler = None
 
     def _setup_model(self) -> None:
         super()._setup_model()
@@ -191,9 +230,48 @@ class PPO_MAE(OnPolicyAlgorithm):
 
             self.clip_range_vf = get_schedule_fn(self.clip_range_vf)
 
-    def load_mae(self, mae):
-        self.mae = mae
-        self.mae_optimizer = th.optim.Adam(self.mae.parameters(), lr=1e-4)
+    def load_dino(self, dino):
+        """
+        加载一个新的DINO模型并配置其优化器
+        """
+        self.dino = dino
+        
+        # 配置DINO优化器 - 使用VTDINO的configure_optimizers
+        # 估算每个epoch的迭代次数
+        num_iterations_per_epoch = max(1, self.rollout_buffer.buffer_size // self.batch_size)
+        # 估算总epoch数(允许用户训练更长时间)
+        num_epochs = 1000  # 使用一个足够大的值，让VTDINO的scheduler能够正常工作
+        
+        # 调用VTDINO的configure_optimizers方法获取优化器和调度器
+        if hasattr(self.dino, 'configure_optimizers'):
+            try:
+                dino_optimizer, lr_scheduler_dict, wd_scheduler_dict = self.dino.configure_optimizers(
+                    num_iterations_per_epoch=num_iterations_per_epoch,
+                    num_epochs=num_epochs
+                )
+                self.dino_optimizer = dino_optimizer
+                
+                # 保存调度器以便后续使用
+                if lr_scheduler_dict is not None:
+                    self.dino_lr_scheduler = lr_scheduler_dict.get('scheduler')
+                else:
+                    self.dino_lr_scheduler = None
+                    
+                if wd_scheduler_dict is not None:
+                    self.dino_wd_scheduler = wd_scheduler_dict.get('wd_scheduler')
+                else:
+                    self.dino_wd_scheduler = None
+            except Exception as e:
+                # 如果配置失败，回退到简单的优化器
+                print(f"Error configuring DINO optimizer from class: {e}. Using default optimizer.")
+                self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
+                self.dino_lr_scheduler = None
+                self.dino_wd_scheduler = None
+        else:
+            # 如果DINO没有configure_optimizers方法，使用默认优化器
+            self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
+            self.dino_lr_scheduler = None
+            self.dino_wd_scheduler = None
 
     def train(self) -> None:
         """
@@ -203,6 +281,15 @@ class PPO_MAE(OnPolicyAlgorithm):
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
+        
+        # 更新DINO优化器的学习率（如果有调度器）
+        if hasattr(self, 'dino_lr_scheduler') and self.dino_lr_scheduler is not None:
+            self.dino_lr_scheduler.step()
+        
+        # 更新DINO权重衰减（如果有调度器）
+        if hasattr(self, 'dino_wd_scheduler') and self.dino_wd_scheduler is not None:
+            self.dino_wd_scheduler.step()
+            
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
         # Optional: clip range for the value function
@@ -220,16 +307,7 @@ class PPO_MAE(OnPolicyAlgorithm):
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
                 
-                # try:
-                    # n_iter = rollout_data.observations['image'].shape[0] // self.mae_batch_size
-                # except:
-                    # n_iter = rollout_data.observations['tactile'].shape[0] // self.mae_batch_size
-
-                # self.policy.optimizer.zero_grad() # NEW
-
                 observations = rollout_data.observations
-                # print("image shape: ", observations['image'].shape)
-                # print("tactile shape: ", observations['tactile'].shape)
                 frame_stack = 1
                 if 'image' in observations and len(observations['image'].shape) == 5:
                     frame_stack = observations['image'].shape[1]
@@ -239,32 +317,23 @@ class PPO_MAE(OnPolicyAlgorithm):
                     frame_stack = observations['tactile'].shape[1]
                     observations['tactile'] = observations['tactile'].reshape((observations['tactile'].shape[0], -1, observations['tactile'].shape[3], observations['tactile'].shape[4]))
                 
-                x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
-                mae_loss = self.mae(x)
-                mae_loss.backward()
+                # 清零DINO的优化器梯度
+                self.dino_optimizer.zero_grad()
+                # 清零策略的优化器梯度
+                self.policy.optimizer.zero_grad()
                 
-                # if not self.separate_optimizer:
-                #     self.policy.optimizer.zero_grad()
-                #     n_iter = 1
-
-                # for i in range(n_iter):
-                #     # Optimization step
-
-                #     if self.separate_optimizer:
-                #         self.mae_optimizer.zero_grad()
-
-                #         x = vt_load(copy.deepcopy({k: v[i*self.mae_batch_size:(i+1)*self.mae_batch_size] for k, v in observations.items()}), frame_stack=frame_stack)
-                #     else:
-                #         x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
-
-                #     mae_loss = self.mae(x)
-                #     mae_loss.backward()
-
-                #     if self.separate_optimizer:
-                #         self.mae_optimizer.step()
-
-                # if self.separate_optimizer:
-                #     self.policy.optimizer.zero_grad()
+                # 加载数据
+                x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+                x = torch.act((x['image'],x['tactile1'],x['tactile2']),dim=-1)
+                x
+                # 执行DINO的训练步骤
+                #dino_loss = self.dino.training_step(x, 0)
+                # 反向传播DINO的损失
+                #dino_loss['loss'].backward()
+                
+                # 如果设置为separate_optimizer为True，只有DINO优化器会在这里更新
+                #if self.separate_optimizer:
+                #    self.dino_optimizer.step()
 
                 actions = rollout_data.actions
                 if isinstance(self.action_space, spaces.Discrete):
@@ -335,14 +404,20 @@ class PPO_MAE(OnPolicyAlgorithm):
                         print(f"Early stopping at step {epoch} due to reaching max kl: {approx_kl_div:.2f}")
                     break
 
+                # 反向传播PPO的损失
                 loss.backward()
                 # Clip grad norm
                 th.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+                # 更新策略优化器
                 self.policy.optimizer.step()
-
+            
+            
             self._n_updates += 1
             if not continue_training:
                 break
+            
+            # 在每个epoch结束时调用DINO的回调方法
+            self.dino.on_train_epoch_end()
 
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 
@@ -355,7 +430,7 @@ class PPO_MAE(OnPolicyAlgorithm):
         self.logger.record("train/loss", loss.item())
         self.logger.record("train/explained_variance", explained_var)
 
-        self.logger.record("train/mae_loss", mae_loss.item())
+        self.logger.record("train/dino_loss", dino_loss['loss'].item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 
@@ -381,5 +456,228 @@ class PPO_MAE(OnPolicyAlgorithm):
             reset_num_timesteps=reset_num_timesteps,
             progress_bar=progress_bar,
         )
+
+
+
+
+
+
+
+
+
+
+
+import argparse
+import torch
+import numpy as np
+import gymnasium as gym
+import os
+import logging
+from functools import partial
+import copy
+import einops
+import traceback
+
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize, DummyVecEnv
+from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+
+import sys
+sys.path.append("/home/leonhard/workshop/presentation/M3L_2")
+
+import tactile_envs
+import envs
+from models.VTT import VTT
+from models.vtdino import VTDINO
+from models.ppo_dino import PPO_DINO
+from models.pretrain_policy import DINOPolicy, DINOExtractor
+from tactile_ssl.model.layers.dino_head import DINOHead
+from utils.pretrain_utils import vt_load
+
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def main():
+    # 设置参数
+    seed = 42
+    set_random_seed(seed)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"使用设备: {device}")
+    
+    # 环境配置
+    env_name = "tactile_envs/Insertion-v0"
+    n_envs = 2  # 测试用小环境数
+    state_type = "vision_and_touch"
+    frame_stack = 4
+    use_latch = True
+    camera_idx = 0
+    no_rotation = True
+    total_timesteps = 10000  # 只进行少量训练步骤进行测试
+    
+    # DINO和PPO参数 (参照dino_vit.yaml)
+    dim_embedding = 256
+    num_global_masks = 2
+    num_local_masks = 8
+    global_mask_scale = (0.48, 1.0)
+    local_mask_scale = (0.1, 0.48)
+    moving_average_decay = 0.998
+    allow_mask_overlap = True
+    teacher_temp = [0.04, 0.07]
+    teacher_warmup_epochs = 10
+    
+    # 确定触觉传感器数量
+    num_tactiles = 2
+    
+    # 创建环境
+    logger.info("创建训练环境...")
+    env_config = {"use_latch": use_latch}
+    objects = ["square", "triangle", "horizontal", "vertical", "trapezoidal", "rhombus"]
+    holders = ["holder1", "holder2", "holder3"]
+    
+    env_list = [
+        envs.make_env(
+            env_name,
+            i,
+            seed,
+            state_type,
+            objects=objects,
+            holders=holders,
+            camera_idx=camera_idx,
+            frame_stack=frame_stack,
+            no_rotation=no_rotation,
+            **env_config,
+        )
+        for i in range(n_envs)
+    ]
+    
+    env = SubprocVecEnv(env_list)
+    env = VecNormalize(env, norm_obs=False, norm_reward=True)
+    
+    # 打印观测空间信息
+    logger.info(f"观测空间: {env.observation_space}")
+    logger.info(f"动作空间: {env.action_space}")
+    
+    # 创建VTT实例作为encoder
+    logger.info("创建VTT编码器...")
+    encoder = VTT(
+        image_size=(64, 64),
+        tactile_size=(32, 32),
+        image_patch_size=8,
+        tactile_patch_size=4,
+        dim=dim_embedding,
+        depth=4,
+        heads=8,
+        mlp_dim=dim_embedding * 2,
+        num_tactiles=num_tactiles,
+        image_channels=3*frame_stack,
+        tactile_channels=3*frame_stack,
+        frame_stack=frame_stack,
+        num_register_tokens=1,
+        pos_embed_fn="sinusoidal"
+    ).to(device)
+    
+    # 创建DINOHead实例
+    dino_head_partial = partial(
+        DINOHead, 
+        out_dim=65536,  # 通常DINO使用的输出维度
+        use_bn=False, 
+        nlayers=3, 
+        hidden_dim=2048, 
+        bottleneck_dim=256
+    )
+    
+    # 创建优化器配置
+    logger.info("配置优化器...")
+    optim_cfg = partial(torch.optim.AdamW, lr=1e-4, weight_decay=0.05)
+    lr_scheduler_cfg = partial(torch.optim.lr_scheduler.CosineAnnealingLR, eta_min=1e-6)
+    
+    # 创建VTDINO实例
+    logger.info("创建VTDINO模型...")
+    dino_model = VTDINO(
+        encoder=encoder,
+        dino_head=dino_head_partial,
+        optim_cfg=optim_cfg,
+        lr_scheduler_cfg=lr_scheduler_cfg,
+        wd_scheduler_cfg=None,
+        local_mask_scale=local_mask_scale,
+        global_mask_scale=global_mask_scale,
+        num_global_masks=num_global_masks, 
+        num_local_masks=num_local_masks,
+        min_keep_num_sensors=4,
+        allow_mask_overlap=allow_mask_overlap,
+        moving_average_decay=moving_average_decay,
+        teacher_temp=teacher_temp,
+        teacher_warmup_epochs=teacher_warmup_epochs,
+        use_momentum=True,
+    ).to(device)
+    
+    # 初始化教师温度
+    dino_model.current_teacher_temp = teacher_temp[0]
+    
+    # 创建策略
+    logger.info("创建DINOPolicy策略...")
+    lr_schedule = lambda _: 1e-4
+    
+    # 创建并配置PPO_DINO训练器
+    logger.info("创建PPO_DINO训练器...")
+    model = PPO_DINO(
+        policy=DINOPolicy,
+        env=env,
+        learning_rate=lr_schedule,
+        n_steps=128,  # 小批量用于快速测试
+        batch_size=64,
+        n_epochs=5,  # 减少训练轮次加快测试
+        gamma=0.99,
+        verbose=1,
+        device=device,
+        dino=dino_model,
+        dino_batch_size=32,
+        policy_kwargs={
+            "dino_model": dino_model,
+            "dim_embeddings": dim_embedding,
+            "vision_only_control": False,
+            "frame_stack": frame_stack,
+            "net_arch": dict(pi=[64, 64], vf=[64, 64]),  # 简化网络架构加快测试
+        }
+    )
+    
+    # 执行训练
+    logger.info(f"开始训练 {total_timesteps} 步...")
+    try:
+        model.learn(total_timesteps=total_timesteps)
+        logger.info("训练完成!")
+        
+        # 测试模型推理
+        logger.info("测试模型推理...")
+        obs = env.reset()
+        for i in range(10):
+            action, _states = model.predict(obs, deterministic=True)
+            obs, rewards, dones, info = env.step(action)
+            if dones.any():
+                logger.info(f"步骤 {i}: 一些环境完成")
+        
+        logger.info("测试成功!")
+        return True
+    except Exception as e:
+        logger.error(f"训练过程中出错: {e}")
+        traceback.print_exc()
+        return False
+    finally:
+        env.close()
+
+if __name__ == "__main__":
+    success = main()
+    if success:
+        print("\n✅ VTDINO+DINOPolicy训练测试通过!")
+    else:
+        print("\n❌ VTDINO+DINOPolicy训练测试失败!")
+
+
+
+
+
+
+
 
 

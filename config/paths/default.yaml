@@ -1,0 +1,8 @@
+data_root: /fsx-gum/shared/
+encoder_checkpoint_root: /fsx-gum/shared/sparsh_models
+log_dir: /fsx-gum/gum/experiments/
+tacbench_dir: /fsx-gum/shared/tacbench/
+
+output_dir: ${hydra:runtime.output_dir}
+work_dir: ${hydra:runtime.cwd}
+

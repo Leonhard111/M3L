@@ -1,0 +1,7 @@
+data_root: /fsx-gum/shared/
+encoder_checkpoint_root: /fsx-gum/shared/sparsh_460k/
+log_dir: /fsx-checkpoints/carohiguera/experiments/
+tacbench_dir: /fsx-gum/carohiguera/tacbench/
+
+output_dir: ${hydra:runtime.output_dir}
+work_dir: ${hydra:runtime.cwd}
