@@ -282,13 +282,13 @@ class PPO_DINO(OnPolicyAlgorithm):
         # Update optimizer learning rate
         self._update_learning_rate(self.policy.optimizer)
         
-        # 更新DINO优化器的学习率（如果有调度器）
-        if hasattr(self, 'dino_lr_scheduler') and self.dino_lr_scheduler is not None:
-            self.dino_lr_scheduler.step()
+        # # 更新DINO优化器的学习率（如果有调度器）
+        # if hasattr(self, 'dino_lr_scheduler') and self.dino_lr_scheduler is not None:
+        #     self.dino_lr_scheduler.step()
         
-        # 更新DINO权重衰减（如果有调度器）
-        if hasattr(self, 'dino_wd_scheduler') and self.dino_wd_scheduler is not None:
-            self.dino_wd_scheduler.step()
+        # # 更新DINO权重衰减（如果有调度器）
+        # if hasattr(self, 'dino_wd_scheduler') and self.dino_wd_scheduler is not None:
+        #     self.dino_wd_scheduler.step()
             
         # Compute current clip range
         clip_range = self.clip_range(self._current_progress_remaining)
@@ -325,7 +325,7 @@ class PPO_DINO(OnPolicyAlgorithm):
                 # 加载数据
                 x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
                 x = torch.act((x['image'],x['tactile1'],x['tactile2']),dim=-1)
-                x
+
                 # 执行DINO的训练步骤
                 #dino_loss = self.dino.training_step(x, 0)
                 # 反向传播DINO的损失

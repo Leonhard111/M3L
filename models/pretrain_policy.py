@@ -95,8 +95,7 @@ class DINOExtractor(BaseFeaturesExtractor):
         #observations = torch.mean(observations, dim=1)
         #print(vt_torch['image'].shape)
         vt_torch = torch.act((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=-1)
-        vt_torch = self.dino_model.student_encoder_dict["backbone"].forward_features(vt_torch)
-        vt_torch = vt_torch['x_norm_regtokens']
+        vt_torch = self.dino_model(vt_torch)
         flattened = self.flatten(vt_torch)
 
         return flattened

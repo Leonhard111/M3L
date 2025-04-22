@@ -136,7 +136,7 @@ def main():
     else:
         env = DummyVecEnv(env_list)
     env = VecNormalize(env, norm_obs=False, norm_reward=config.norm_reward)
-    encoder = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg')
+    # encoder = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg')
     # 创建VTT实例作为encoder
     encoder = VTT(
         image_size=(64, 64),
