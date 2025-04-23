@@ -59,12 +59,12 @@ def main():
     parser.add_argument("--use_latch", type=str2bool, default=True)
     
     parser.add_argument("--camera_idx", type=int, default=0, choices=[0, 1, 2, 3])
-    parser.add_argument("--frame_stack", type=int, default=1)
+    parser.add_argument("--frame_stack", type=int, default=4)
     parser.add_argument("--no_rotation", type=str2bool, default=True)
 
     # DINO参数
     parser.add_argument("--representation", type=str2bool, default=True)
-    parser.add_argument("--dim_embedding", type=int, default=384*parser.parse_args().frame_stack)             # encoder输出维度
+    parser.add_argument("--dim_embedding", type=int, default=384)             # encoder输出维度
     parser.add_argument("--use_sincosmod_encodings", type=str2bool, default=True)
     parser.add_argument("--num_global_masks", type=int, default=2)
     parser.add_argument("--num_local_masks", type=int, default=8)

@@ -46,7 +46,7 @@ class DINOExtractor(BaseFeaturesExtractor):
 
     def __init__(self, 
                     observation_space: gym.Space, 
-                    dino_model, 
+                    dino_model,    # 换成encoder
                     dim_embeddings, 
                     vision_only_control, 
                     frame_stack

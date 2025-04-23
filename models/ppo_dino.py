@@ -185,39 +185,39 @@ class PPO_DINO(OnPolicyAlgorithm):
             # 估算总epoch数(允许用户训练更长时间)
             num_epochs = 1000  # 使用一个足够大的值，让VTDINO的scheduler能够正常工作
             
-            # 调用VTDINO的configure_optimizers方法获取优化器和调度器
-            if hasattr(self.dino, 'configure_optimizers'):
-                try:
-                    dino_optimizer, lr_scheduler_dict, wd_scheduler_dict = self.dino.configure_optimizers(
-                        num_iterations_per_epoch=num_iterations_per_epoch,
-                        num_epochs=num_epochs
-                    )
-                    self.dino_optimizer = dino_optimizer
+            # # 调用VTDINO的configure_optimizers方法获取优化器和调度器
+            # if hasattr(self.dino, 'configure_optimizers'):
+            #     try:
+            #         dino_optimizer, lr_scheduler_dict, wd_scheduler_dict = self.dino.configure_optimizers(
+            #             num_iterations_per_epoch=num_iterations_per_epoch,
+            #             num_epochs=num_epochs
+            #         )
+            #         self.dino_optimizer = dino_optimizer
                     
-                    # 保存调度器以便后续使用
-                    if lr_scheduler_dict is not None:
-                        self.dino_lr_scheduler = lr_scheduler_dict.get('scheduler')
-                    else:
-                        self.dino_lr_scheduler = None
+            #         # 保存调度器以便后续使用
+            #         if lr_scheduler_dict is not None:
+            #             self.dino_lr_scheduler = lr_scheduler_dict.get('scheduler')
+            #         else:
+            #             self.dino_lr_scheduler = None
                         
-                    if wd_scheduler_dict is not None:
-                        self.dino_wd_scheduler = wd_scheduler_dict.get('wd_scheduler')
-                    else:
-                        self.dino_wd_scheduler = None
+            #         if wd_scheduler_dict is not None:
+            #             self.dino_wd_scheduler = wd_scheduler_dict.get('wd_scheduler')
+            #         else:
+            #             self.dino_wd_scheduler = None
                         
-                    if self.verbose > 0:
-                        print(f"Successfully configured DINO optimizer and scheduler from VTDINO class")
-                except Exception as e:
-                    # 如果配置失败，回退到简单的优化器
-                    print(f"Error configuring DINO optimizer from class: {e}. Using default optimizer.")
-                    self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
-                    self.dino_lr_scheduler = None
-                    self.dino_wd_scheduler = None
-            else:
-                # 如果DINO没有configure_optimizers方法，使用默认优化器
-                self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
-                self.dino_lr_scheduler = None
-                self.dino_wd_scheduler = None
+            #         if self.verbose > 0:
+            #             print(f"Successfully configured DINO optimizer and scheduler from VTDINO class")
+            #     except Exception as e:
+            #         # 如果配置失败，回退到简单的优化器
+            #         print(f"Error configuring DINO optimizer from class: {e}. Using default optimizer.")
+            #         self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
+            #         self.dino_lr_scheduler = None
+            #         self.dino_wd_scheduler = None
+            # else:
+            #     # 如果DINO没有configure_optimizers方法，使用默认优化器
+            #     self.dino_optimizer = th.optim.Adam(self.dino.parameters(), lr=1e-4)
+            #     self.dino_lr_scheduler = None
+            #     self.dino_wd_scheduler = None
 
     def _setup_model(self) -> None:
         super()._setup_model()
@@ -318,7 +318,7 @@ class PPO_DINO(OnPolicyAlgorithm):
                     observations['tactile'] = observations['tactile'].reshape((observations['tactile'].shape[0], -1, observations['tactile'].shape[3], observations['tactile'].shape[4]))
                 
                 # 清零DINO的优化器梯度
-                self.dino_optimizer.zero_grad()
+                #self.dino_optimizer.zero_grad()
                 # 清零策略的优化器梯度
                 self.policy.optimizer.zero_grad()
                 
@@ -417,7 +417,7 @@ class PPO_DINO(OnPolicyAlgorithm):
                 break
             
             # 在每个epoch结束时调用DINO的回调方法
-            self.dino.on_train_epoch_end()
+#            self.dino.on_train_epoch_end()
 
         explained_var = explained_variance(self.rollout_buffer.values.flatten(), self.rollout_buffer.returns.flatten())
 

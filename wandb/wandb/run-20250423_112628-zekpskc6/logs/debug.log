@@ -1,0 +1,28 @@
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Current SDK version is 0.16.0
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Configure stats pid to 61657
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Loading settings from /home/leonhard/.config/wandb/settings
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Loading settings from /home/leonhard/workshop/test/M3L/wandb/settings
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'trainDINO.py', 'program_abspath': '/home/leonhard/workshop/test/M3L/trainDINO.py', 'program': '/home/leonhard/workshop/test/M3L/trainDINO.py'}
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_init.py:_log_setup():524] Logging user logs to ./wandb/wandb/run-20250423_112628-zekpskc6/logs/debug.log
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_init.py:_log_setup():525] Logging internal logs to ./wandb/wandb/run-20250423_112628-zekpskc6/logs/debug-internal.log
+2025-04-23 11:26:28,208 INFO    MainThread:61657 [wandb_init.py:init():564] calling init triggers
+2025-04-23 11:26:28,209 INFO    MainThread:61657 [wandb_init.py:init():571] wandb.init called with sweep_config: {}
+config: {'seed': 0, 'save_freq': 100000, 'eval_every': 200000, 'total_timesteps': 3000000, 'wandb_dir': './wandb/', 'wandb_id': None, 'wandb_entity': None, 'env': 'tactile_envs/Insertion-v0', 'n_envs': 1, 'state_type': 'vision_and_touch', 'norm_reward': True, 'use_latch': True, 'camera_idx': 0, 'frame_stack': 1, 'no_rotation': True, 'representation': True, 'dim_embedding': 384, 'use_sincosmod_encodings': True, 'num_global_masks': 2, 'num_local_masks': 8, 'global_mask_scale_min': 0.48, 'global_mask_scale_max': 1.0, 'local_mask_scale_min': 0.2, 'local_mask_scale_max': 0.48, 'allow_mask_overlap': True, 'moving_average_decay': 0.998, 'teacher_temp_min': 0.04, 'teacher_temp_max': 0.07, 'teacher_warmup_epochs': 10, 'dino_batch_size': 128, 'train_dino_every': 1, 'rollout_length': 512, 'ppo_epochs': 10, 'lr_ppo': 0.0001, 'vision_only_control': False, 'batch_size': 128, 'separate_optimizer': True}
+2025-04-23 11:26:28,209 INFO    MainThread:61657 [wandb_init.py:init():614] starting backend
+2025-04-23 11:26:28,209 INFO    MainThread:61657 [wandb_init.py:init():618] setting up manager
+2025-04-23 11:26:28,210 INFO    MainThread:61657 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-04-23 11:26:28,212 INFO    MainThread:61657 [wandb_init.py:init():624] backend started and connected
+2025-04-23 11:26:28,215 INFO    MainThread:61657 [wandb_init.py:init():716] updated telemetry
+2025-04-23 11:26:28,221 INFO    MainThread:61657 [wandb_init.py:init():749] communicating run to backend with 90.0 second timeout
+2025-04-23 11:26:29,234 INFO    MainThread:61657 [wandb_run.py:_on_init():2254] communicating current version
+2025-04-23 11:26:30,437 INFO    MainThread:61657 [wandb_run.py:_on_init():2263] got version response upgrade_message: "wandb version 0.19.10 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2025-04-23 11:26:30,437 INFO    MainThread:61657 [wandb_init.py:init():800] starting run threads in backend
+2025-04-23 11:26:30,503 INFO    MainThread:61657 [wandb_run.py:_console_start():2233] atexit reg
+2025-04-23 11:26:30,503 INFO    MainThread:61657 [wandb_run.py:_redirect():2088] redirect: wrap_raw
+2025-04-23 11:26:30,503 INFO    MainThread:61657 [wandb_run.py:_redirect():2153] Wrapping output streams.
+2025-04-23 11:26:30,503 INFO    MainThread:61657 [wandb_run.py:_redirect():2178] Redirects installed.
+2025-04-23 11:26:30,504 INFO    MainThread:61657 [wandb_init.py:init():841] run started, returning control to user process
+2025-04-23 11:26:55,957 WARNING MsgRouterThr:61657 [router.py:message_loop():77] message_loop has been closed

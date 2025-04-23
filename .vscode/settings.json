@@ -1,0 +1,18 @@
+{
+    "terminal.integrated.env.windows": {
+        // Windows 系统下的环境变量设置
+        "PYTHONPATH": "D:\\code\\python\\dtw2",
+        // "MY_CUSTOM_VAR": "some_value_for_windows"
+    },
+    "terminal.integrated.env.linux": {
+        // Linux 系统下的环境变量设置
+        "PYTHONPATH": "/home/leonhard/workshop/test/M3L",
+        // "MY_CUSTOM_VAR": "some_value_for_linux"
+    },
+    "terminal.integrated.env.osx": {
+        // macOS 系统下的环境变量设置
+        "PYTHONPATH": "/path/to/your/python/libs",
+        "MY_CUSTOM_VAR": "some_value_for_osx"
+    },
+    "python.createEnvironment.contentButton": "hide"
+}

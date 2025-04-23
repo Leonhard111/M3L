@@ -1,0 +1,128 @@
+{
+    "os": "Linux-6.11.0-21-generic-x86_64-with-glibc2.39",
+    "python": "3.11.11",
+    "heartbeatAt": "2025-04-23T03:26:30.471766",
+    "startedAt": "2025-04-23T03:26:28.206202",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/leonhard/workshop/test/M3L/trainDINO.py",
+    "codePathLocal": "trainDINO.py",
+    "codePath": "trainDINO.py",
+    "git": {
+        "remote": "https://github.com/Leonhard111/M3L.git",
+        "commit": "58ce92494d2fea09da14b648d2c0d6aec4ba894a"
+    },
+    "email": "3319369662@qq.com",
+    "root": "/home/leonhard/workshop/test/M3L",
+    "host": "leonhard-Lenovo-Legion-Y9000P2021H",
+    "username": "leonhard",
+    "executable": "/home/leonhard/anaconda3/envs/tactile_envs/bin/python",
+    "cpu_count": 8,
+    "cpu_count_logical": 16,
+    "cpu_freq": {
+        "current": 1849.2642499999997,
+        "min": 800.0,
+        "max": 4600.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 4300.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 1395.714,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 884.835,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 886.994,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 1793.195,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4277.325,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 801.333,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 1413.36,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 798.673,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 800.0,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2283.554,
+            "min": 800.0,
+            "max": 4600.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 145.61280059814453,
+            "used": 53.69932556152344
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3060 Laptop GPU",
+            "memory_total": 6442450944
+        }
+    ],
+    "memory": {
+        "total": 15.468788146972656
+    }
+}

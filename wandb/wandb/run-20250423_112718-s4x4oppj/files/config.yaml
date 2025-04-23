@@ -1,0 +1,141 @@
+wandb_version: 1
+
+seed:
+  desc: null
+  value: 0
+save_freq:
+  desc: null
+  value: 100000
+eval_every:
+  desc: null
+  value: 200000
+total_timesteps:
+  desc: null
+  value: 3000000
+wandb_dir:
+  desc: null
+  value: ./wandb/
+wandb_id:
+  desc: null
+  value: null
+wandb_entity:
+  desc: null
+  value: null
+env:
+  desc: null
+  value: tactile_envs/Insertion-v0
+n_envs:
+  desc: null
+  value: 1
+state_type:
+  desc: null
+  value: vision_and_touch
+norm_reward:
+  desc: null
+  value: true
+use_latch:
+  desc: null
+  value: true
+camera_idx:
+  desc: null
+  value: 0
+frame_stack:
+  desc: null
+  value: 1
+no_rotation:
+  desc: null
+  value: true
+representation:
+  desc: null
+  value: true
+dim_embedding:
+  desc: null
+  value: 384
+use_sincosmod_encodings:
+  desc: null
+  value: true
+num_global_masks:
+  desc: null
+  value: 2
+num_local_masks:
+  desc: null
+  value: 8
+global_mask_scale_min:
+  desc: null
+  value: 0.48
+global_mask_scale_max:
+  desc: null
+  value: 1.0
+local_mask_scale_min:
+  desc: null
+  value: 0.2
+local_mask_scale_max:
+  desc: null
+  value: 0.48
+allow_mask_overlap:
+  desc: null
+  value: true
+moving_average_decay:
+  desc: null
+  value: 0.998
+teacher_temp_min:
+  desc: null
+  value: 0.04
+teacher_temp_max:
+  desc: null
+  value: 0.07
+teacher_warmup_epochs:
+  desc: null
+  value: 10
+dino_batch_size:
+  desc: null
+  value: 128
+train_dino_every:
+  desc: null
+  value: 1
+rollout_length:
+  desc: null
+  value: 512
+ppo_epochs:
+  desc: null
+  value: 10
+lr_ppo:
+  desc: null
+  value: 0.0001
+vision_only_control:
+  desc: null
+  value: false
+batch_size:
+  desc: null
+  value: 128
+separate_optimizer:
+  desc: null
+  value: true
+_wandb:
+  desc: null
+  value:
+    code_path: code/trainDINO.py
+    python_version: 3.11.11
+    cli_version: 0.16.0
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1745378838.335121
+    t:
+      1:
+      - 1
+      - 41
+      - 55
+      2:
+      - 1
+      - 41
+      - 55
+      3:
+      - 13
+      - 16
+      - 23
+      4: 3.11.11
+      5: 0.16.0
+      8:
+      - 5
+      13: linux-x86_64

@@ -64,7 +64,7 @@ def main():
 
     # DINO参数
     parser.add_argument("--representation", type=str2bool, default=True)
-    parser.add_argument("--dim_embedding", type=int, default=384*parser.parse_args().frame_stack)             # encoder输出维度
+    parser.add_argument("--dim_embedding", type=int, default=384)             # encoder输出维度
     parser.add_argument("--use_sincosmod_encodings", type=str2bool, default=True)
     parser.add_argument("--num_global_masks", type=int, default=2)
     parser.add_argument("--num_local_masks", type=int, default=8)
