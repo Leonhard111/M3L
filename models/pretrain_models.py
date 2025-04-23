@@ -716,7 +716,22 @@ class VTMAE(nn.Module):
 
 class VTT(nn.Module):
 
-    def __init__(self, *, image_size, tactile_size, image_patch_size, tactile_patch_size, dim, depth, heads, mlp_dim, image_channels = 3, tactile_channels=3, dim_head = 64, dropout = 0., emb_dropout = 0, num_tactiles=2, frame_stack=1):
+    def __init__(self, *, 
+                 image_size, 
+                 tactile_size, 
+                 image_patch_size, 
+                 tactile_patch_size, 
+                 dim, 
+                 depth, 
+                 heads, 
+                 mlp_dim, 
+                 image_channels = 3, 
+                 tactile_channels=3, 
+                 dim_head = 64, 
+                 dropout = 0., 
+                 emb_dropout = 0, 
+                 num_tactiles=2, 
+                 frame_stack=1):
         super().__init__()
         image_height, image_width = pair(image_size)
         tactile_height, tactile_width = pair(tactile_size)
