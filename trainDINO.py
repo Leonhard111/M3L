@@ -222,7 +222,7 @@ def main():
             dino_batch_size=config.dino_batch_size,
             separate_optimizer=config.separate_optimizer,
             policy_kwargs=policy_kwargs,
-            dino=encoder,  # 直接传递dino实例，PPO_DINO会正确配置其优化器
+            dino=encoder,  # 换成dinov2
         )
         
         callbacks = create_callbacks(

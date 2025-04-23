@@ -1,1 +1,2 @@
-测试文件
+添加新的测试 pretrain_policy.py
+在DINOv2后又加了transformer
