@@ -1,6 +1,4 @@
-import warnings
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
-import copy
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 import torch as th
@@ -14,19 +12,28 @@ from stable_baselines3.common.policies import BasePolicy, ContinuousCritic
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import get_parameters_by_name, polyak_update
 from stable_baselines3.sac.policies import Actor, CnnPolicy, MlpPolicy, MultiInputPolicy, SACPolicy
+
 from models.sac_mae_policy import MAESACPolicy
 
 from utils.pretrain_utils import vt_load
+import copy
 
-SelfSAC_MAE = TypeVar("SelfSAC_MAE", bound="SAC_MAE")
+SelfSAC = TypeVar("SelfSAC", bound="SAC")
 
 
 class SAC_MAE(OffPolicyAlgorithm):
     """
-    Soft Actor-Critic with Masked Autoencoder (SAC-MAE)
-    
-    This implementation combines SAC with a Masked Autoencoder for representation learning.
-    It extends the regular SAC implementation from Stable Baselines 3.
+    Soft Actor-Critic (SAC)
+    Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor,
+    This implementation borrows code from original implementation (https://github.com/haarnoja/sac)
+    from OpenAI Spinning Up (https://github.com/openai/spinningup), from the softlearning repo
+    (https://github.com/rail-berkeley/softlearning/)
+    and from Stable Baselines (https://github.com/hill-a/stable-baselines)
+    Paper: https://arxiv.org/abs/1801.01290
+    Introduction to SAC: https://spinningup.openai.com/en/latest/algorithms/sac.html
+
+    Note: we use double q target and not value target as discussed
+    in https://github.com/hill-a/stable-baselines/issues/270
 
     :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
     :param env: The environment to learn from (if registered in Gym, can be str)
@@ -50,6 +57,7 @@ class SAC_MAE(OffPolicyAlgorithm):
     :param replay_buffer_kwargs: Keyword arguments to pass to the replay buffer on creation.
     :param optimize_memory_usage: Enable a memory efficient variant of the replay buffer
         at a cost of more complexity.
+        See https://github.com/DLR-RM/stable-baselines3/issues/37#issuecomment-637501195
     :param ent_coef: Entropy regularization coefficient. (Equivalent to
         inverse of reward scale in the original SAC paper.)  Controlling exploration/exploitation trade-off.
         Set it to 'auto' to learn it automatically (and 'auto_0.1' for using 0.1 as initial value)
@@ -71,17 +79,13 @@ class SAC_MAE(OffPolicyAlgorithm):
     :param seed: Seed for the pseudo random generators
     :param device: Device (cpu, cuda, ...) on which the code should be run.
         Setting it to auto, the code will be run on the GPU if possible.
-    :param mae: Masked Autoencoder model
-    :param mae_batch_size: Batch size for MAE training
-    :param separate_optimizer: Whether to use a separate optimizer for MAE
     :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
 
-    policy_aliases: Dict[str, Type[BasePolicy]] = {
+    policy_aliases: ClassVar[Dict[str, Type[BasePolicy]]] = {
         "MlpPolicy": MlpPolicy,
         "CnnPolicy": CnnPolicy,
         "MultiInputPolicy": MultiInputPolicy,
-        "MAESACPolicy": MAESACPolicy,
     }
     policy: SACPolicy
     actor: Actor
@@ -93,7 +97,7 @@ class SAC_MAE(OffPolicyAlgorithm):
         policy: Union[str, Type[SACPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
-        buffer_size: int = 1_000 ,#_000,  # 1e6
+        buffer_size: int = 1_000_000,  # 1e6
         learning_starts: int = 100,
         batch_size: int = 256,
         tau: float = 0.005,
@@ -116,10 +120,11 @@ class SAC_MAE(OffPolicyAlgorithm):
         verbose: int = 0,
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
+        _init_setup_model: bool = True,
+        # new add
         mae = None,
         mae_batch_size = 32,
         separate_optimizer = False,
-        _init_setup_model: bool = True,
     ):
         super().__init__(
             policy,
@@ -157,14 +162,19 @@ class SAC_MAE(OffPolicyAlgorithm):
         self.target_update_interval = target_update_interval
         self.ent_coef_optimizer: Optional[th.optim.Adam] = None
 
+
+        "删了"
+        # if _init_setup_model:
+        #     self._setup_model()
+
+        "new add"
+
         self.mae_batch_size = mae_batch_size
         self.separate_optimizer = separate_optimizer
-
         if _init_setup_model:
             self._setup_model()
             self.mae = mae
             self.mae_optimizer = th.optim.Adam(self.mae.parameters(), lr=1e-4)
-
     def _setup_model(self) -> None:
         super()._setup_model()
         self._create_aliases()
@@ -200,14 +210,15 @@ class SAC_MAE(OffPolicyAlgorithm):
             # is passed
             self.ent_coef_tensor = th.tensor(float(self.ent_coef), device=self.device)
 
+    def load_mae(self, mae):
+        self.mae = mae
+        self.mae_optimizer = th.optim.Adam(self.mae.parameters(), lr=1e-4)
+
+
     def _create_aliases(self) -> None:
         self.actor = self.policy.actor
         self.critic = self.policy.critic
         self.critic_target = self.policy.critic_target
-
-    def load_mae(self, mae):
-        self.mae = mae
-        self.mae_optimizer = th.optim.Adam(self.mae.parameters(), lr=1e-4)
 
     def train(self, gradient_steps: int, batch_size: int = 64) -> None:
         # Switch to train mode (this affects batch norm / dropout)
@@ -222,32 +233,64 @@ class SAC_MAE(OffPolicyAlgorithm):
 
         ent_coef_losses, ent_coefs = [], []
         actor_losses, critic_losses = [], []
-        mae_losses = []
 
         for gradient_step in range(gradient_steps):
             # Sample replay buffer
+            # replay_data
             replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)  # type: ignore[union-attr]
 
-            # We need to sample because `log_std` may have changed between two gradient steps
-            if self.use_sde:
-                self.actor.reset_noise()
-                
-            # Process observations for MAE training
+
+            try:
+                n_iter = replay_data.observations['image'].shape[0] // self.mae_batch_size
+            except:
+                n_iter = replay_data.observations['tactile'].shape[0] // self.mae_batch_size
+
+            # self.policy.optimizer.zero_grad() # NEW
+
             observations = replay_data.observations
+            # print("image shape: ", observations['image'].shape)
+            # print("tactile shape: ", observations['tactile'].shape)
             frame_stack = 1
             if 'image' in observations and len(observations['image'].shape) == 5:
                 frame_stack = observations['image'].shape[1]
-                observations['image'] = observations['image'].permute(0, 2, 3, 1, 4)
+                observations['image'] = observations['image'].permute(0, 2, 3, 1, 4) 
                 observations['image'] = observations['image'].reshape((observations['image'].shape[0], observations['image'].shape[1], observations['image'].shape[2], -1))
             if 'tactile' in observations and len(observations['tactile'].shape) == 5:
                 frame_stack = observations['tactile'].shape[1]
                 observations['tactile'] = observations['tactile'].reshape((observations['tactile'].shape[0], -1, observations['tactile'].shape[3], observations['tactile'].shape[4]))
+            
+            # x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+            # mae_loss = self.mae(x)
+            # mae_loss.backward()
+            
+            if not self.separate_optimizer:
+                self.policy.optimizer.zero_grad()
+                n_iter = 1
 
-            # MAE training
-            x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
-            mae_loss = self.mae(x)
-            mae_loss.backward()
-            mae_losses.append(mae_loss.item())
+            for i in range(n_iter):
+                # Optimization step
+
+                if self.separate_optimizer:
+                    self.mae_optimizer.zero_grad()
+
+                    x = vt_load(copy.deepcopy({k: v[i*self.mae_batch_size:(i+1)*self.mae_batch_size] for k, v in observations.items()}), frame_stack=frame_stack)
+                else:
+                    x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+
+                mae_loss = self.mae(x)
+                mae_loss.backward()
+
+                if self.separate_optimizer:
+                    self.mae_optimizer.step()
+
+            if self.separate_optimizer:
+                self.policy.optimizer.zero_grad()
+
+
+
+            # We need to sample because `log_std` may have changed between two gradient steps
+            if self.use_sde:
+                self.actor.reset_noise()
 
             # Action by the current actor for the sampled state
             actions_pi, log_prob = self.actor.action_log_prob(replay_data.observations)
@@ -323,19 +366,23 @@ class SAC_MAE(OffPolicyAlgorithm):
         self.logger.record("train/ent_coef", np.mean(ent_coefs))
         self.logger.record("train/actor_loss", np.mean(actor_losses))
         self.logger.record("train/critic_loss", np.mean(critic_losses))
-        self.logger.record("train/mae_loss", np.mean(mae_losses))
+
+        "new add"
+        self.logger.record("train/mae_loss", mae_loss.item())
+
+        
         if len(ent_coef_losses) > 0:
             self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
 
     def learn(
-        self: SelfSAC_MAE,
+        self: SelfSAC,
         total_timesteps: int,
         callback: MaybeCallback = None,
         log_interval: int = 4,
-        tb_log_name: str = "SAC_MAE",
+        tb_log_name: str = "SAC",
         reset_num_timesteps: bool = True,
         progress_bar: bool = False,
-    ) -> SelfSAC_MAE:
+    ) -> SelfSAC:
         return super().learn(
             total_timesteps=total_timesteps,
             callback=callback,
@@ -357,10 +404,10 @@ class SAC_MAE(OffPolicyAlgorithm):
             saved_pytorch_variables = ["ent_coef_tensor"]
         return state_dicts, saved_pytorch_variables
 
-
 def main():
     """
     测试SAC_MAE算法的示例函数，使用正确的policy和extractor
+    优化版本：适用于低内存(16G)和低显存(6G)环境
     """
     import argparse
     import torch
@@ -368,9 +415,10 @@ def main():
     import gymnasium
     import tactile_envs
     import envs
-    from models.pretrain_models import VTT, VTMAE, MAEPolicy
-    from models.sac_mae_policy import MAESACPolicy, MAESACExtractor
-    from stable_baselines3.common.vec_env import VecNormalize, DummyVecEnv, SubprocVecEnv
+    import gc
+    from models.pretrain_models import VTT, VTMAE, MAEPolicy,MAEExtractor
+    from models.sac_mae_policy import MAESACPolicy
+    from stable_baselines3.common.vec_env import VecNormalize, DummyVecEnv
     from stable_baselines3.common.utils import set_random_seed
     from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 
@@ -380,17 +428,19 @@ def main():
     parser.add_argument("--env", type=str, default="tactile_envs/Insertion-v0", help="环境名称")
     parser.add_argument("--state_type", type=str, default="vision_and_touch", 
                         choices=["vision", "touch", "vision_and_touch"], help="状态类型")
-    parser.add_argument("--total_timesteps", type=int, default=50000, help="总训练步数")
-    parser.add_argument("--frame_stack", type=int, default=4, help="帧堆叠数")
-    parser.add_argument("--buffer_size", type=int, default=100000, help="经验回放缓冲区大小")
-    parser.add_argument("--learning_starts", type=int, default=1000, help="开始学习前的收集步数")
-    parser.add_argument("--batch_size", type=int, default=256, help="批次大小")
-    parser.add_argument("--mae_batch_size", type=int, default=32, help="MAE训练批次大小")
-    parser.add_argument("--dim_embedding", type=int, default=256, help="嵌入维度")
-    parser.add_argument("--save_path", type=str, default="./models/saved", help="模型保存路径")
-    parser.add_argument("--log_path", type=str, default="./logs", help="日志保存路径")
+    parser.add_argument("--total_timesteps", type=int, default=20000, help="总训练步数")
+    parser.add_argument("--frame_stack", type=int, default=2, help="帧堆叠数")
+    parser.add_argument("--buffer_size", type=int, default=20000, help="经验回放缓冲区大小")
+    parser.add_argument("--learning_starts", type=int, default=500, help="开始学习前的收集步数")
+    parser.add_argument("--batch_size", type=int, default=128, help="批次大小")
+    parser.add_argument("--mae_batch_size", type=int, default=16, help="MAE训练批次大小")
+    parser.add_argument("--dim_embedding", type=int, default=128, help="嵌入维度")
+    parser.add_argument("--save_path", type=str, default="./models/rubbish_test/saved", help="模型保存路径")
+    parser.add_argument("--log_path", type=str, default="./rubbish_test/logs", help="日志保存路径")
     parser.add_argument("--n_envs", type=int, default=1, help="环境数量")
     parser.add_argument("--eval_freq", type=int, default=5000, help="评估频率")
+    parser.add_argument("--save_freq", type=int, default=10000, help="模型保存频率")
+    parser.add_argument("--memory_efficient", action="store_true", help="使用内存高效模式")
     args = parser.parse_args()
     
     # 创建保存目录
@@ -408,49 +458,38 @@ def main():
             num_tactiles = 1
     
     env_config = {"use_latch": True}
-    objects = ["square", "triangle", "horizontal", "vertical"]
-    holders = ["holder1", "holder2", "holder3"]
+    objects = ["square", "triangle"]  # 减少对象数量以节省内存
+    holders = ["holder1", "holder2"]  # 减少支架数量以节省内存
     
-    # 创建环境
-    if args.n_envs > 1:
-        # 多环境版本
-        env_fns = [
-            lambda i=i: envs.make_env(
-                args.env,
-                i,
-                args.seed + i,
-                args.state_type,
-                objects=objects,
-                holders=holders,
-                camera_idx=0,
-                frame_stack=args.frame_stack,
-                no_rotation=True,
-                **env_config
-            )()
-            for i in range(args.n_envs)
-        ]
-        env = SubprocVecEnv(env_fns)
-    else:
-        # 单环境版本
-        env_fn = envs.make_env(
-            args.env,
-            0,
-            args.seed,
-            args.state_type,
-            objects=objects,
-            holders=holders,
-            camera_idx=0,
-            frame_stack=args.frame_stack,
-            no_rotation=True,
-            **env_config
-        )
-        env = DummyVecEnv([env_fn])
-    
+    # 创建单环境（不使用SubprocVecEnv以节省内存）
+    env_fn = envs.make_env(
+        args.env,
+        0,
+        args.seed,
+        args.state_type,
+        objects=objects,
+        holders=holders,
+        camera_idx=0,
+        frame_stack=args.frame_stack,
+        no_rotation=True,
+        **env_config
+    )
+    env = DummyVecEnv([env_fn])
     env = VecNormalize(env, norm_obs=False, norm_reward=True)
     
     print(f"创建环境: {args.env}, 状态类型: {args.state_type}, 触觉传感器数量: {num_tactiles}")
     
-    # 创建MAE模型
+    # 确定设备
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        # 限制CUDA内存使用
+        torch.cuda.set_per_process_memory_fraction(0.8)  # 使用最多80%的GPU内存
+        print("使用CUDA，限制显存使用")
+    else:
+        device = torch.device("cpu")
+        print("使用CPU")
+    
+    # 创建MAE模型（降低模型复杂度）
     print("创建MAE模型...")
     v = VTT(
         image_size=(64, 64),
@@ -458,9 +497,9 @@ def main():
         image_patch_size=8,
         tactile_patch_size=4,
         dim=args.dim_embedding,
-        depth=4,
-        heads=4,
-        mlp_dim=args.dim_embedding * 2,
+        depth=3,  # 减少深度
+        heads=3,  # 减少头数
+        mlp_dim=args.dim_embedding,  # 减少MLP维度
         num_tactiles=num_tactiles,
         image_channels=3*args.frame_stack,
         tactile_channels=3*args.frame_stack,
@@ -470,21 +509,14 @@ def main():
     mae = VTMAE(
         encoder=v,
         masking_ratio=0.95, 
-        decoder_dim=args.dim_embedding,  
-        decoder_depth=3, 
-        decoder_heads=4,
+        decoder_dim=args.dim_embedding // 2,  # 减少解码器维度
+        decoder_depth=2,  # 减少解码器深度
+        decoder_heads=3,  # 减少解码器头数
         num_tactiles=num_tactiles,
         early_conv_masking=True,
         use_sincosmod_encodings=True,
         frame_stack=args.frame_stack
     )
-    
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print("使用CUDA")
-    else:
-        device = torch.device("cpu")
-        print("使用CPU")
     
     mae = mae.to(device)
     mae.eval()
@@ -500,17 +532,18 @@ def main():
         'vision_only_control': False,
         'frame_stack': args.frame_stack
     }
-    
+    # MAEExtractor1 = MAEExtractor(env.action_space,**features_extractor_kwargs)
+    # print(type(MAEExtractor1))
     # 创建SAC_MAE模型
     policy_kwargs = {
-        "features_extractor_class": MAESACExtractor,
+        "features_extractor_class": MAEExtractor,
         "features_extractor_kwargs": features_extractor_kwargs,
-        "net_arch": dict(pi=[256, 256], qf=[256, 256]),
+        "net_arch": dict(pi=[128, 128], qf=[128, 128]),  # 减少网络层大小
     }
     
     print("创建SAC_MAE模型...")
     model = SAC_MAE(
-        MAESACPolicy,  # 显式指定使用MAESACPolicy
+        MAESACPolicy,
         env,
         learning_rate=3e-4,
         buffer_size=args.buffer_size,
@@ -529,20 +562,113 @@ def main():
         policy_kwargs=policy_kwargs,
         mae=mae,
         verbose=1,
+        # optimize_memory_usage=args.memory_efficient,  # 启用内存优化
     )
     
-    # 创建回调函数
+    # 如果需要测试特征提取器和策略，使用更小的测试样本
+    if args.memory_efficient:
+        print("跳过特征提取器和策略测试以节省内存")
+    else:
+        print("\n======== 开始特征提取器和策略测试 ========")
+        
+        # 从环境获取真实观测样本
+        print("获取环境观测样本...")
+        obs = env.reset()
+        
+        # 检查并打印观测格式
+        print(f"环境观测类型: {type(obs)}")
+        print(f"环境观测结构: {obs.keys() if isinstance(obs, dict) else 'not a dict'}")
+        
+        if isinstance(obs, dict):
+            for key, value in obs.items():
+                print(f"观测 '{key}' 形状: {value.shape}")
+        
+        # 创建与环境观测格式相匹配的测试数据
+        print("\n创建匹配环境观测格式的测试数据...")
+        
+        test_obs = {}
+        if isinstance(obs, dict):
+            for key, value in obs.items():
+                if key == "image":
+                    # 保持与环境完全相同的形状
+                    test_obs["image"] = torch.rand(value.shape, device=device)
+                    print(f"创建测试图像数据，形状: {test_obs['image'].shape}")
+                elif key == "tactile" and num_tactiles > 0:
+                    # 保持与环境完全相同的形状
+                    test_obs["tactile"] = torch.rand(value.shape, device=device)
+                    print(f"创建测试触觉数据，形状: {test_obs['tactile'].shape}")
+                else:
+                    # 处理其他类型的观测数据
+                    test_obs[key] = torch.tensor(value, device=device)
+                    print(f"创建其他测试数据 '{key}'，形状: {test_obs[key].shape}")
+        else:
+            # 如果观测不是字典类型，使用默认形状
+            print("警告：环境观测不是字典类型，使用默认形状")
+            test_obs = {"image": torch.rand((1, 64, 64, 3*args.frame_stack), device=device)}
+            if num_tactiles > 0:
+                test_obs["tactile"] = torch.rand((1, num_tactiles, 32, 32, 3*args.frame_stack), device=device)
+        
+        # 在使用前检查维度是否符合vt_load的要求
+        print("\n检查测试数据维度是否符合vt_load要求...")
+        if "image" in test_obs:
+            if test_obs["image"].ndim == 5:  # (batch, frame_stack, h, w, c)
+                # 此时需要转换形状
+                print(f"转换图像数据形状: {test_obs['image'].shape} → ", end="")
+                image = test_obs["image"]
+                batch, frames, h, w, c = image.shape
+                image = image.permute(0, 2, 3, 1, 4)
+                image = image.reshape(batch, h, w, frames * c)
+                test_obs["image"] = image
+                print(f"{test_obs['image'].shape}")
+        
+        if "tactile" in test_obs:
+            if test_obs["tactile"].ndim == 6:  # (batch, num_tactiles, frame_stack, h, w, c)
+                print(f"转换触觉数据形状: {test_obs['tactile'].shape} → ", end="")
+                tactile = test_obs["tactile"]
+                batch, n_tactiles, frames, h, w, c = tactile.shape
+                tactile = tactile.reshape(batch, n_tactiles, h, w, frames * c)
+                test_obs["tactile"] = tactile
+                print(f"{test_obs['tactile'].shape}")
+        
+        # 测试特征提取器
+        print("\n测试MAEExtractor...")
+        features_extractor = model.policy.features_extractor
+        model.policy.set_training_mode(False)
+        print(f"特征提取器类型: {type(features_extractor)}")
+        
+        with torch.no_grad():
+            try:
+                features = features_extractor(test_obs)
+                print(f"特征提取成功 - 形状: {features.shape}")
+            except Exception as e:
+                print(f"特征提取失败: {e}")
+                # 尝试使用vt_load直接处理
+                print("\n尝试使用vt_load直接处理测试数据...")
+                try:
+                    vt_data = vt_load(test_obs, frame_stack=args.frame_stack)
+                    print(f"vt_load处理成功，结果形状: {', '.join([f'{k}: {v.shape}' for k, v in vt_data.items()])}")
+                except Exception as e2:
+                    print(f"vt_load处理失败: {e2}")
+        
+        print("======== 特征提取器和策略测试完成 ========\n")
+        
+        # 释放测试数据占用的内存
+        del test_obs
+        torch.cuda.empty_cache() if torch.cuda.is_available() else gc.collect()
+    
+    # 创建回调函数，减少保存频率
     checkpoint_callback = CheckpointCallback(
-        save_freq=5000,
+        save_freq=args.save_freq,
         save_path=f"{args.save_path}/checkpoints/",
-        name_prefix="sac_mae_model"
+        name_prefix="sac_mae_model",
+        save_vecnormalize=True
     )
     
-    # 创建评估环境
+    # 创建评估环境（简化评估频率和配置）
     eval_env = envs.make_env(
         args.env,
         0,
-        args.seed + 100,  # 不同的种子
+        args.seed + 100,
         args.state_type,
         objects=objects,
         holders=holders,
@@ -560,30 +686,40 @@ def main():
         log_path=f"{args.log_path}/eval/",
         eval_freq=args.eval_freq,
         deterministic=True,
-        render=False
+        render=False,
+        n_eval_episodes=3  # 减少评估回合数
     )
     
     callbacks = [checkpoint_callback, eval_callback]
     
     # 训练模型
     print(f"开始训练SAC_MAE模型，总步数: {args.total_timesteps}...")
-    model.learn(total_timesteps=args.total_timesteps, callback=callbacks)
-    print("训练完成")
-    
-    # 保存模型
-    final_model_path = f"{args.save_path}/final_model"
-    model.save(final_model_path)
-    print(f"最终模型已保存到 {final_model_path}")
-    
-    # 也保存环境正则化统计信息
-    env_stats_path = f"{args.save_path}/vec_normalize_stats.pkl"
-    env.save(env_stats_path)
-    print(f"环境统计信息已保存到 {env_stats_path}")
-    
-    # 关闭环境
-    env.close()
-    eval_env.close()
-    print("测试完成")
+    try:
+        model.learn(total_timesteps=args.total_timesteps, callback=callbacks)
+        print("训练完成")
+        
+        # 保存最终模型
+        final_model_path = f"{args.save_path}/final_model"
+        model.save(final_model_path)
+        print(f"最终模型已保存到 {final_model_path}")
+        
+        # 保存环境正则化统计信息
+        env_stats_path = f"{args.save_path}/vec_normalize_stats.pkl"
+        env.save(env_stats_path)
+        print(f"环境统计信息已保存到 {env_stats_path}")
+    except Exception as e:
+        print(f"训练过程中发生错误: {e}")
+    finally:
+        # 确保资源被释放
+        print("清理资源...")
+        env.close()
+        eval_env.close()
+        del model
+        del mae
+        del env
+        del eval_env
+        torch.cuda.empty_cache() if torch.cuda.is_available() else gc.collect()
+        print("测试完成")
 
 if __name__ == "__main__":
     main()

@@ -86,9 +86,11 @@ class PPO_MAE(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
+
         n_steps: int = 2048,
         batch_size: int = 64,
         n_epochs: int = 10,
+        
         gamma: float = 0.99,
         gae_lambda: float = 0.95,
         clip_range: Union[float, Schedule] = 0.2,
@@ -220,10 +222,10 @@ class PPO_MAE(OnPolicyAlgorithm):
             # Do a complete pass on the rollout buffer
             for rollout_data in self.rollout_buffer.get(self.batch_size):
                 
-                # try:
-                    # n_iter = rollout_data.observations['image'].shape[0] // self.mae_batch_size
-                # except:
-                    # n_iter = rollout_data.observations['tactile'].shape[0] // self.mae_batch_size
+                try:
+                    n_iter = rollout_data.observations['image'].shape[0] // self.mae_batch_size
+                except:
+                    n_iter = rollout_data.observations['tactile'].shape[0] // self.mae_batch_size
 
                 # self.policy.optimizer.zero_grad() # NEW
 
@@ -239,32 +241,32 @@ class PPO_MAE(OnPolicyAlgorithm):
                     frame_stack = observations['tactile'].shape[1]
                     observations['tactile'] = observations['tactile'].reshape((observations['tactile'].shape[0], -1, observations['tactile'].shape[3], observations['tactile'].shape[4]))
                 
-                x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
-                mae_loss = self.mae(x)
-                mae_loss.backward()
+                # x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+                # mae_loss = self.mae(x)
+                # mae_loss.backward()
                 
-                # if not self.separate_optimizer:
-                #     self.policy.optimizer.zero_grad()
-                #     n_iter = 1
+                if not self.separate_optimizer:
+                    self.policy.optimizer.zero_grad()
+                    n_iter = 1
 
-                # for i in range(n_iter):
-                #     # Optimization step
+                for i in range(n_iter):
+                    # Optimization step
 
-                #     if self.separate_optimizer:
-                #         self.mae_optimizer.zero_grad()
+                    if self.separate_optimizer:
+                        self.mae_optimizer.zero_grad()
 
-                #         x = vt_load(copy.deepcopy({k: v[i*self.mae_batch_size:(i+1)*self.mae_batch_size] for k, v in observations.items()}), frame_stack=frame_stack)
-                #     else:
-                #         x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+                        x = vt_load(copy.deepcopy({k: v[i*self.mae_batch_size:(i+1)*self.mae_batch_size] for k, v in observations.items()}), frame_stack=frame_stack)
+                    else:
+                        x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
 
-                #     mae_loss = self.mae(x)
-                #     mae_loss.backward()
+                    mae_loss = self.mae(x)
+                    mae_loss.backward()
 
-                #     if self.separate_optimizer:
-                #         self.mae_optimizer.step()
+                    if self.separate_optimizer:
+                        self.mae_optimizer.step()
 
-                # if self.separate_optimizer:
-                #     self.policy.optimizer.zero_grad()
+                if self.separate_optimizer:
+                    self.policy.optimizer.zero_grad()
 
                 actions = rollout_data.actions
                 if isinstance(self.action_space, spaces.Discrete):
@@ -381,5 +383,3 @@ class PPO_MAE(OnPolicyAlgorithm):
             reset_num_timesteps=reset_num_timesteps,
             progress_bar=progress_bar,
         )
-
-

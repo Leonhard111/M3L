@@ -7,8 +7,9 @@
     "terminal.integrated.env.linux": {
         // Linux 系统下的环境变量设置
         "PYTHONPATH": "/home/leonhard/workshop/test/M3L",
+        "MUJOCO_GL":"egl",
         // "MY_CUSTOM_VAR": "some_value_for_linux"
-        "WANDB_API_KEY": "你的API密钥2" ,
+        // "WANDB_API_KEY": "你的API密钥2" ,
     },
     "terminal.integrated.env.osx": {
         // macOS 系统下的环境变量设置

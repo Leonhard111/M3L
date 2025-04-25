@@ -11,9 +11,9 @@ import envs
 from utils.callbacks import create_callbacks
 from models.ppo_dino import PPO_DINO
 from models.pretrain_policy import DINOPolicy
-from models.VTT import VTT
-from models.vtdino import VTDINO
-from tactile_ssl.model.layers.dino_head import DINOHead
+# from models.VTT import VTT
+# from models.vtdino import VTDINO
+# from tactile_ssl.model.layers.dino_head import DINOHead
 
 def str2bool(v):
     if v.lower() == "true":

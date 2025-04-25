@@ -3,7 +3,8 @@ import torch
 
 from stable_baselines3.sac.policies import SACPolicy
 from models.sac_mae import SAC_MAE
-from models.sac_mae_policy import MAESACPolicy, MAESACExtractor
+from models.sac_mae_policy import MAESACPolicy
+from models.pretrain_models import MAEExtractor
 
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize, DummyVecEnv
 from stable_baselines3.common.utils import set_random_seed
@@ -67,14 +68,14 @@ def main():
     parser.add_argument("--use_sincosmod_encodings", type=str2bool, default=True)
     parser.add_argument("--masking_ratio", type=float, default=0.95)
     
-    parser.add_argument("--mae_batch_size", type=int, default=32)
+    parser.add_argument("--mae_batch_size", type=int, default=128)
     parser.add_argument("--train_mae_every", type=int, default=1)
 
     # SAC parameters
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--buffer_size", type=int, default=1000000)
     parser.add_argument("--learning_starts", type=int, default=10000)
-    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--tau", type=float, default=0.005)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--train_freq", type=int, default=1)
@@ -82,10 +83,10 @@ def main():
     parser.add_argument("--ent_coef", type=str, default="auto")
     parser.add_argument("--target_update_interval", type=int, default=1)
     parser.add_argument("--target_entropy", type=str, default="auto")
-    parser.add_argument("--vision_only_control", type=bool, default=False)
+    parser.add_argument("--vision_only_control", type=str2bool, default=False)
 
     # SAC-MAE
-    parser.add_argument("--separate_optimizer", type=str2bool, default=False)
+    parser.add_argument("--separate_optimizer", type=str2bool, default=True)
 
     config = parser.parse_args()
 
@@ -174,7 +175,7 @@ def main():
         }
         
         policy_kwargs = {
-            "features_extractor_class": MAESACExtractor,
+            "features_extractor_class": MAEExtractor,
             "features_extractor_kwargs": features_extractor_kwargs,
             "net_arch": dict(pi=[256, 256], qf=[256, 256]),
         }
@@ -217,7 +218,7 @@ def main():
         }
         
         policy_kwargs = {
-            "features_extractor_class": MAESACExtractor,
+            "features_extractor_class": MAEExtractor,
             "features_extractor_kwargs": features_extractor_kwargs,
             "net_arch": dict(pi=[256, 256], qf=[256, 256]),
         }
