@@ -1,7 +1,7 @@
 import argparse
 import torch
 from functools import partial
-
+"58dd5bb7edda3154f9a506b85bfeb6dfb0723d48"
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize, DummyVecEnv
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.callbacks import CallbackList
@@ -48,7 +48,7 @@ def main():
             "HandManipulatePenRotateFixed-v1"
         ],
     )
-    parser.add_argument("--n_envs", type=int, default=1)
+    parser.add_argument("--n_envs", type=int, default=64)
     parser.add_argument(
         "--state_type",
         type=str,
@@ -64,25 +64,25 @@ def main():
 
     # DINO参数
     parser.add_argument("--representation", type=str2bool, default=True)
-    parser.add_argument("--dim_embedding", type=int, default=384*parser.parse_args().frame_stack)             # encoder输出维度
-    parser.add_argument("--use_sincosmod_encodings", type=str2bool, default=True)
-    parser.add_argument("--num_global_masks", type=int, default=2)
-    parser.add_argument("--num_local_masks", type=int, default=8)
-    parser.add_argument("--global_mask_scale_min", type=float, default=0.48)
-    parser.add_argument("--global_mask_scale_max", type=float, default=1.0)
-    parser.add_argument("--local_mask_scale_min", type=float, default=0.2)
-    parser.add_argument("--local_mask_scale_max", type=float, default=0.48)
-    parser.add_argument("--allow_mask_overlap", type=str2bool, default=True)
-    parser.add_argument("--moving_average_decay", type=float, default=0.998)
-    parser.add_argument("--teacher_temp_min", type=float, default=0.04)
-    parser.add_argument("--teacher_temp_max", type=float, default=0.07)
-    parser.add_argument("--teacher_warmup_epochs", type=int, default=10)
+    parser.add_argument("--dim_embedding", type=int, default=384)             # encoder输出维度
+    # parser.add_argument("--use_sincosmod_encodings", type=str2bool, default=True)
+    # parser.add_argument("--num_global_masks", type=int, default=2)
+    # parser.add_argument("--num_local_masks", type=int, default=8)
+    # parser.add_argument("--global_mask_scale_min", type=float, default=0.48)
+    # parser.add_argument("--global_mask_scale_max", type=float, default=1.0)
+    # parser.add_argument("--local_mask_scale_min", type=float, default=0.2)
+    # parser.add_argument("--local_mask_scale_max", type=float, default=0.48)
+    # parser.add_argument("--allow_mask_overlap", type=str2bool, default=True)
+    # parser.add_argument("--moving_average_decay", type=float, default=0.998)
+    # parser.add_argument("--teacher_temp_min", type=float, default=0.04)
+    # parser.add_argument("--teacher_temp_max", type=float, default=0.07)
+    # parser.add_argument("--teacher_warmup_epochs", type=int, default=10)
     
     parser.add_argument("--dino_batch_size", type=int, default=128)
-    parser.add_argument("--train_dino_every", type=int, default=1)
+    # parser.add_argument("--train_dino_every", type=int, default=1)
 
     # PPO参数
-    parser.add_argument("--rollout_length", type=int, default=512)             #32768
+    parser.add_argument("--rollout_length", type=int, default=32768)             #32768
     parser.add_argument("--ppo_epochs", type=int, default=10)
     parser.add_argument("--lr_ppo", type=float, default=1e-4)
     parser.add_argument("--vision_only_control", type=str2bool, default=False)
@@ -136,24 +136,7 @@ def main():
     else:
         env = DummyVecEnv(env_list)
     env = VecNormalize(env, norm_obs=False, norm_reward=config.norm_reward)
-    # encoder = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg')
-    # 创建VTT实例作为encoder
-    # encoder = VTT(
-    #     image_size=(64, 64),
-    #     tactile_size=(32, 32),
-    #     image_patch_size=8,
-    #     tactile_patch_size=4,
-    #     dim=config.dim_embedding,
-    #     depth=4,
-    #     heads=8,
-    #     mlp_dim=config.dim_embedding * 2,
-    #     num_tactiles=num_tactiles,
-    #     image_channels=3*config.frame_stack,
-    #     tactile_channels=3*config.frame_stack,
-    #     frame_stack=config.frame_stack,
-    #     num_register_tokens=1,
-    #     pos_embed_fn="sinusoidal" if config.use_sincosmod_encodings else "learned"
-    # )
+
 
 
     encoder = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_reg')

@@ -51,7 +51,7 @@ class DINOExtractor(BaseFeaturesExtractor):
                     vision_only_control, 
                     frame_stack
                     ) -> None:
-        super().__init__(observation_space, dim_embeddings*3*frame_stack)   # 3 =channel
+        super().__init__(observation_space, dim_embeddings)   # 3 =channel            *frame_stack
         self.flatten = nn.Flatten()
         self.dino_model = dino_model
         
@@ -121,8 +121,8 @@ class DINOExtractor(BaseFeaturesExtractor):
             else:
                 ob2 = torch.cat((ob2,mid[0] ,mid[1] ,mid[2]),dim = -2)
 
-            ob2 = self.transformer(ob2)
-
+        ob2 = self.transformer(ob2)
+        ob2 = torch.mean(ob2, dim=1)
         flattened = self.flatten(ob2)
 
         return flattened
