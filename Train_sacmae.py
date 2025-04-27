@@ -12,6 +12,8 @@ from stable_baselines3.common.utils import set_random_seed
 import tactile_envs
 import envs
 from utils.callbacks import create_callbacks
+# 导入新的离线策略回调
+from utils.offpolicy_callbacks import create_offpolicy_callbacks
 from models.pretrain_models import VTT, VTMAE, MAEPolicy
 
 def str2bool(v):
@@ -202,7 +204,8 @@ def main():
             verbose=1,
         )
             
-        callbacks = create_callbacks(
+        # 使用专门针对离线策略算法的回调
+        callbacks = create_offpolicy_callbacks(
             config, model, num_tactiles, objects, holders
         )
         model.learn(total_timesteps=config.total_timesteps, callback=callbacks)
@@ -241,7 +244,8 @@ def main():
             policy_kwargs=policy_kwargs,
             verbose=1,
         )
-        callbacks = create_callbacks(
+        # 同样使用离线策略回调
+        callbacks = create_offpolicy_callbacks(
             config, model, num_tactiles, objects, holders
         )
         model.learn(total_timesteps=config.total_timesteps, callback=callbacks)

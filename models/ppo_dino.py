@@ -316,7 +316,13 @@ class PPO_DINO(OnPolicyAlgorithm):
                 if 'tactile' in observations and len(observations['tactile'].shape) == 5:
                     frame_stack = observations['tactile'].shape[1]
                     observations['tactile'] = observations['tactile'].reshape((observations['tactile'].shape[0], -1, observations['tactile'].shape[3], observations['tactile'].shape[4]))
-                
+
+
+
+                vt_torch = torch.cat((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=1)
+                vt_torch = vt_torch.reshape(self.batch_size*3*self.frame_stack,-1,70,70)   # 3:视 ，触，触
+                vt_torch = self.dino_model(vt_torch)
+                vt_torch = vt_torch.reshape(self.batch_size , -1, self.dim_embeddings)        
                 # 清零DINO的优化器梯度
                 #self.dino_optimizer.zero_grad()
                 # 清零策略的优化器梯度

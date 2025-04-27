@@ -273,18 +273,25 @@ class SAC_MAE(OffPolicyAlgorithm):
                 if self.separate_optimizer:
                     self.mae_optimizer.zero_grad()
 
-                    x = vt_load(copy.deepcopy({k: v[i*self.mae_batch_size:(i+1)*self.mae_batch_size] for k, v in observations.items()}), frame_stack=frame_stack)
+                    batch_obs = copy.deepcopy({k: v[i*self.mae_batch_size:(i+1)*self.mae_batch_size] for k, v in observations.items()})
+                    x = vt_load(batch_obs, frame_stack=frame_stack)
+
+                    # Ensure all data is float32
+                    for key in x:
+                        if isinstance(x[key], th.Tensor):
+                            x[key] = x[key].to(dtype=th.float32)
+
+                    mae_loss = self.mae(x)
+                    mae_loss.backward()
+
+                    self.mae_optimizer.step()
                 else:
                     x = vt_load(copy.deepcopy(observations), frame_stack=frame_stack)
+                    mae_loss = self.mae(x)
+                    mae_loss.backward()
 
-                mae_loss = self.mae(x)
-                mae_loss.backward()
-
-                if self.separate_optimizer:
-                    self.mae_optimizer.step()
-
-            if self.separate_optimizer:
-                self.policy.optimizer.zero_grad()
+            # if self.separate_optimizer:
+            #     self.policy.optimizer.zero_grad()
 
 
 
@@ -420,7 +427,10 @@ def main():
     from models.sac_mae_policy import MAESACPolicy
     from stable_baselines3.common.vec_env import VecNormalize, DummyVecEnv
     from stable_baselines3.common.utils import set_random_seed
-    from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+    from stable_baselines3.common.callbacks import CheckpointCallback
+    
+    # 导入新的离线策略评估回调
+    from utils.offpolicy_callbacks import OffPolicyEvalCallback, create_offpolicy_callbacks
 
     # 解析命令行参数
     parser = argparse.ArgumentParser("测试SAC_MAE算法")
@@ -536,6 +546,7 @@ def main():
     # print(type(MAEExtractor1))
     # 创建SAC_MAE模型
     policy_kwargs = {
+        "mae_model": mae,
         "features_extractor_class": MAEExtractor,
         "features_extractor_kwargs": features_extractor_kwargs,
         "net_arch": dict(pi=[128, 128], qf=[128, 128]),  # 减少网络层大小
@@ -558,13 +569,12 @@ def main():
         target_entropy="auto",
         tensorboard_log=f"{args.log_path}/tensorboard_sac_mae/",
         mae_batch_size=args.mae_batch_size,
-        separate_optimizer=False,
+        separate_optimizer=True,
         policy_kwargs=policy_kwargs,
         mae=mae,
         verbose=1,
-        # optimize_memory_usage=args.memory_efficient,  # 启用内存优化
     )
-    
+    print(model.policy.features_extractor.frame_stack)
     # 如果需要测试特征提取器和策略，使用更小的测试样本
     if args.memory_efficient:
         print("跳过特征提取器和策略测试以节省内存")
@@ -590,23 +600,23 @@ def main():
         if isinstance(obs, dict):
             for key, value in obs.items():
                 if key == "image":
-                    # 保持与环境完全相同的形状
-                    test_obs["image"] = torch.rand(value.shape, device=device)
+                    # 保持与环境完全相同的形状，并明确使用float32类型
+                    test_obs["image"] = torch.rand(value.shape, device=device, dtype=torch.float32)
                     print(f"创建测试图像数据，形状: {test_obs['image'].shape}")
                 elif key == "tactile" and num_tactiles > 0:
-                    # 保持与环境完全相同的形状
-                    test_obs["tactile"] = torch.rand(value.shape, device=device)
+                    # 保持与环境完全相同的形状，并明确使用float32类型
+                    test_obs["tactile"] = torch.rand(value.shape, device=device, dtype=torch.float32)
                     print(f"创建测试触觉数据，形状: {test_obs['tactile'].shape}")
                 else:
-                    # 处理其他类型的观测数据
-                    test_obs[key] = torch.tensor(value, device=device)
+                    # 处理其他类型的观测数据，保持float32类型
+                    test_obs[key] = torch.tensor(value, device=device, dtype=torch.float32)
                     print(f"创建其他测试数据 '{key}'，形状: {test_obs[key].shape}")
         else:
-            # 如果观测不是字典类型，使用默认形状
+            # 如果观测不是字典类型，使用默认形状，明确float32类型
             print("警告：环境观测不是字典类型，使用默认形状")
-            test_obs = {"image": torch.rand((1, 64, 64, 3*args.frame_stack), device=device)}
+            test_obs = {"image": torch.rand((1, 64, 64, 3*args.frame_stack), device=device, dtype=torch.float32)}
             if num_tactiles > 0:
-                test_obs["tactile"] = torch.rand((1, num_tactiles, 32, 32, 3*args.frame_stack), device=device)
+                test_obs["tactile"] = torch.rand((1, num_tactiles, 32, 32, 3*args.frame_stack), device=device, dtype=torch.float32)
         
         # 在使用前检查维度是否符合vt_load的要求
         print("\n检查测试数据维度是否符合vt_load要求...")
@@ -645,8 +655,19 @@ def main():
                 # 尝试使用vt_load直接处理
                 print("\n尝试使用vt_load直接处理测试数据...")
                 try:
-                    vt_data = vt_load(test_obs, frame_stack=args.frame_stack)
+                    # 确保所有输入都转换为float32
+                    float32_obs = {}
+                    for k, v in test_obs.items():
+                        if isinstance(v, torch.Tensor):
+                            float32_obs[k] = v.to(dtype=torch.float32)
+                        else:
+                            float32_obs[k] = v
+                    
+                    vt_data = vt_load(float32_obs, frame_stack=args.frame_stack)
                     print(f"vt_load处理成功，结果形状: {', '.join([f'{k}: {v.shape}' for k, v in vt_data.items()])}")
+                    # 打印张量数据类型，帮助调试
+                    for k, v in vt_data.items():
+                        print(f"'{k}' 数据类型: {v.dtype}")
                 except Exception as e2:
                     print(f"vt_load处理失败: {e2}")
         
@@ -656,70 +677,89 @@ def main():
         del test_obs
         torch.cuda.empty_cache() if torch.cuda.is_available() else gc.collect()
     
-    # 创建回调函数，减少保存频率
-    checkpoint_callback = CheckpointCallback(
-        save_freq=args.save_freq,
-        save_path=f"{args.save_path}/checkpoints/",
-        name_prefix="sac_mae_model",
-        save_vecnormalize=True
-    )
+    # 创建回调函数，使用新的离线策略评估回调
+    class SimpleConfig:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
     
-    # 创建评估环境（简化评估频率和配置）
-    eval_env = envs.make_env(
-        args.env,
-        0,
-        args.seed + 100,
-        args.state_type,
-        objects=objects,
-        holders=holders,
-        camera_idx=0,
-        frame_stack=args.frame_stack,
+    # 简化配置，用于测试
+    simple_config = SimpleConfig(
+        use_latch=True,
         no_rotation=True,
-        **env_config
-    )()
-    eval_env = DummyVecEnv([lambda: eval_env])
-    eval_env = VecNormalize(eval_env, norm_obs=False, norm_reward=False, training=False)
-    
-    eval_callback = EvalCallback(
-        eval_env,
-        best_model_save_path=f"{args.save_path}/best_model/",
-        log_path=f"{args.log_path}/eval/",
-        eval_freq=args.eval_freq,
-        deterministic=True,
-        render=False,
-        n_eval_episodes=3  # 减少评估回合数
+        representation=True,
+        frame_stack=args.frame_stack,
+        state_type=args.state_type,
+        env=args.env,
+        camera_idx=0,
+        save_freq=args.save_freq,
+        n_envs=args.n_envs,
+        eval_every=args.eval_freq,
+        wandb_dir=args.log_path,
+        wandb_id=None,
+        wandb_entity=None,
+        rollout_length=1  # 为兼容原有回调
     )
     
-    callbacks = [checkpoint_callback, eval_callback]
+    print("创建离线策略回调...")
+    try:
+        # 尝试使用专用回调
+        from utils.offpolicy_callbacks import create_offpolicy_callbacks
+        callbacks = create_offpolicy_callbacks(
+            simple_config, model, num_tactiles, objects, holders
+        )
+        print("成功创建离线策略专用回调")
+    except ImportError as e:
+        print(f"无法导入离线策略回调，使用默认回调: {e}")
+        # 回退到普通回调
+        checkpoint_callback = CheckpointCallback(
+            save_freq=args.save_freq,
+            save_path=f"{args.save_path}/checkpoints/",
+            name_prefix="sac_mae_model",
+            save_vecnormalize=True
+        )
+        
+        eval_callback = OffPolicyEvalCallback(
+            args.env,
+            args.state_type,
+            no_tactile=(num_tactiles == 0),
+            representation=True,
+            eval_freq=args.eval_freq,
+            config=simple_config,
+            objects=objects,
+            holders=holders,
+            camera_idx=0,
+            frame_stack=args.frame_stack,
+        )
+        
+        callbacks = [checkpoint_callback, eval_callback]
     
     # 训练模型
     print(f"开始训练SAC_MAE模型，总步数: {args.total_timesteps}...")
-    try:
-        model.learn(total_timesteps=args.total_timesteps, callback=callbacks)
-        print("训练完成")
-        
-        # 保存最终模型
-        final_model_path = f"{args.save_path}/final_model"
-        model.save(final_model_path)
-        print(f"最终模型已保存到 {final_model_path}")
-        
-        # 保存环境正则化统计信息
-        env_stats_path = f"{args.save_path}/vec_normalize_stats.pkl"
-        env.save(env_stats_path)
-        print(f"环境统计信息已保存到 {env_stats_path}")
-    except Exception as e:
-        print(f"训练过程中发生错误: {e}")
-    finally:
-        # 确保资源被释放
-        print("清理资源...")
-        env.close()
-        eval_env.close()
-        del model
-        del mae
-        del env
-        del eval_env
-        torch.cuda.empty_cache() if torch.cuda.is_available() else gc.collect()
-        print("测试完成")
+
+    model.learn(total_timesteps=args.total_timesteps, callback=callbacks)
+    print("训练完成")
+    
+    # 保存最终模型
+    final_model_path = f"{args.save_path}/final_model"
+    model.save(final_model_path)
+    print(f"最终模型已保存到 {final_model_path}")
+    
+    # 保存环境正则化统计信息
+    env_stats_path = f"{args.save_path}/vec_normalize_stats.pkl"
+    env.save(env_stats_path)
+    print(f"环境统计信息已保存到 {env_stats_path}")
+    # except Exception as e:
+        # print(f"训练过程中发生错误: {e}")
+    # finally:
+    #     # 确保资源被释放
+    #     print("清理资源...")
+        # env.close()
+        # del model
+        # del mae
+        # del env
+        # torch.cuda.empty_cache() if torch.cuda.is_available() else gc.collect()
+        # print("测试完成")
 
 if __name__ == "__main__":
     main()

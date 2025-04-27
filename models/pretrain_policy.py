@@ -68,6 +68,7 @@ class DINOExtractor(BaseFeaturesExtractor):
                                        dim_head= 64, 
                                        mlp_dim= dim_embeddings,
                                        dropout = 0)
+        self.dim_embeddings = dim_embeddings
         # self.vit_layer = VTT(   # 
         #     image_size = (64, 64), # not used
         #     tactile_size = (32, 32), # not used
@@ -101,29 +102,36 @@ class DINOExtractor(BaseFeaturesExtractor):
         #observations = self.vit_layer.transformer(observations)
         #observations = torch.mean(observations, dim=1)
         #print(vt_torch['image'].shape)
-        # vt_torch = torch.cat((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=-1)
-        # vt_torch = self.dino_model(vt_torch)
-        ob2 = None
-        for i in range(self.frame_stack):
-            mid = [None] * 3
-            mid[0] = vt_torch['image'][:,i*3:(i+1)*3, : ,:]
-            mid[0] =self.dino_model(mid[0])
-            mid[1] = vt_torch['tactile1'][:,i*3:(i+1)*3, : ,:]
-            mid[1] =self.dino_model(mid[1])            
-            mid[2] = vt_torch['tactile2'][:,i*3:(i+1)*3, : ,:]
-            mid[2] =self.dino_model(mid[2])
-            mid[0] = mid[0].unsqueeze(1)
-            mid[1] = mid[1].unsqueeze(1)
-            mid[2] = mid[2].unsqueeze(1)
-            #mid = torch.cat((mid[0] ,mid[1] ,mid[2]),dim = -2)
-            if ob2 is None:
-                ob2=(torch.cat((mid[0] ,mid[1] ,mid[2]),dim = -2))
-            else:
-                ob2 = torch.cat((ob2,mid[0] ,mid[1] ,mid[2]),dim = -2)
+        batch_size = vt_torch['image'].shape[0]
+        vt_torch = torch.cat((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=1)
+        vt_torch = vt_torch.reshape(batch_size*3*self.frame_stack,-1,70,70)   # 3:视 ，触，触
+        vt_torch = self.dino_model(vt_torch)
+        vt_torch = vt_torch.reshape(batch_size , -1, self.dim_embeddings)
+        
+        # ob2 = None
+        # for i in range(self.frame_stack):
+        #     mid = [None] * 3
+        #     mid[0] = vt_torch['image'][:,i*3:(i+1)*3, : ,:]
+        #     mid[0] =self.dino_model(mid[0])
+        #     mid[1] = vt_torch['tactile1'][:,i*3:(i+1)*3, : ,:]
+        #     mid[1] =self.dino_model(mid[1])            
+        #     mid[2] = vt_torch['tactile2'][:,i*3:(i+1)*3, : ,:]
+        #     mid[2] =self.dino_model(mid[2])
+        #     mid[0] = mid[0].unsqueeze(1)
+        #     mid[1] = mid[1].unsqueeze(1)
+        #     mid[2] = mid[2].unsqueeze(1)
+        #     #mid = torch.cat((mid[0] ,mid[1] ,mid[2]),dim = -2)
+        #     if ob2 is None:
+        #         ob2=(torch.cat((mid[0] ,mid[1] ,mid[2]),dim = -2))
+        #     else:
+        #         ob2 = torch.cat((ob2,mid[0] ,mid[1] ,mid[2]),dim = -2)
 
-        ob2 = self.transformer(ob2)
-        ob2 = torch.mean(ob2, dim=1)
-        flattened = self.flatten(ob2)
+        # ob2 = self.transformer(ob2)
+        # ob2 = torch.mean(ob2, dim=1)
+        vt_torch = self.transformer(vt_torch)
+        vt_torch = torch.mean(vt_torch, dim=1)
+        # flattened = self.flatten(ob2)
+        flattened = self.flatten(vt_torch)
 
         return flattened
 
@@ -458,7 +466,7 @@ def main():
     parser.add_argument("--n_envs", type=int, default=1)
     parser.add_argument("--state_type", type=str, default="vision_and_touch", 
                         choices=["vision", "touch", "vision_and_touch"])
-    parser.add_argument("--frame_stack", type=int, default=1)
+    parser.add_argument("--frame_stack", type=int, default=4)
     parser.add_argument("--vision_only_control", type=bool, default=False)
     parser.add_argument("--dim_embedding", type=int, default=384)
     parser.add_argument("--env", type=str, default="tactile_envs/Insertion-v0")

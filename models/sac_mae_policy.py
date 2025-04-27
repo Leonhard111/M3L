@@ -11,7 +11,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.sac.policies import Actor, SACPolicy
 
 from utils.pretrain_utils import vt_load
-from pretrain_models import MAEExtractor
+from models.pretrain_models import MAEExtractor
 from stable_baselines3.common.type_aliases import PyTorchObs, Schedule
 
 
@@ -71,12 +71,12 @@ class MAESACPolicy(SACPolicy):
             features_extractor_kwargs = {}
             
         # 确保使用正确的特征提取器
-        features_extractor_class = MAEExtractor
-        features_extractor_kwargs = {   'mae_model': mae_model, 
-                                        'dim_embeddings': dim_embeddings, 
-                                        'vision_only_control': vision_only_control, 
-                                        'frame_stack': frame_stack
-                                     }
+        # features_extractor_class = MAEExtractor
+        # features_extractor_kwargs = {   'mae_model': mae_model, 
+        #                                 'dim_embeddings': dim_embeddings, 
+        #                                 'vision_only_control': vision_only_control, 
+        #                                 'frame_stack': frame_stack
+        #                              }
             
         # 处理lr_schedule参数 - 如果是浮点数，转换为常量函数
         if isinstance(lr_schedule, (float, int)):
@@ -107,6 +107,7 @@ class MAESACPolicy(SACPolicy):
             observation_space,
             **features_extractor_kwargs
         )
+        #print(type(self.optimizer))
 
 
     def forward(self, obs: PyTorchObs, deterministic: bool = False) -> th.Tensor:
