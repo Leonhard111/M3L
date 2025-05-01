@@ -136,19 +136,19 @@ def create_callbacks(config, model, num_tactiles, objects, holders):
     default_logger = configure_logger(
         verbose=1, tensorboard_log=model.tensorboard_log, tb_log_name="PPO"
     )
-    wandb.init(
-        project=project_name,
-        config=config,
-        save_code=True,
-        name=default_logger.dir.split("/")[-1],
-        dir=config.wandb_dir,
-        id=config.wandb_id,
-        entity=config.wandb_entity,
-    )
-    logger = WandbLogger(
-        default_logger.dir, default_logger.output_formats, log_interval=1000
-    )
-    model.set_logger(logger)
-    checkpoint_callback.save_path = wandb.run.dir
+    # wandb.init(
+    #     project=project_name,
+    #     config=config,
+    #     save_code=True,
+    #     name=default_logger.dir.split("/")[-1],
+    #     dir=config.wandb_dir,
+    #     id=config.wandb_id,
+    #     entity=config.wandb_entity,
+    # )
+    # logger = WandbLogger(
+    #     default_logger.dir, default_logger.output_formats, log_interval=1000
+    # )
+    model.set_logger(default_logger)
+    checkpoint_callback.save_path = default_logger.dir  # 使用TensorBoard日志目录
 
     return callbacks

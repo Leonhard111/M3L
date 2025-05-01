@@ -108,23 +108,7 @@ class DINOExtractor(BaseFeaturesExtractor):
         vt_torch = self.dino_model(vt_torch)
         vt_torch = vt_torch.reshape(batch_size , -1, self.dim_embeddings)
         
-        # ob2 = None
-        # for i in range(self.frame_stack):
-        #     mid = [None] * 3
-        #     mid[0] = vt_torch['image'][:,i*3:(i+1)*3, : ,:]
-        #     mid[0] =self.dino_model(mid[0])
-        #     mid[1] = vt_torch['tactile1'][:,i*3:(i+1)*3, : ,:]
-        #     mid[1] =self.dino_model(mid[1])            
-        #     mid[2] = vt_torch['tactile2'][:,i*3:(i+1)*3, : ,:]
-        #     mid[2] =self.dino_model(mid[2])
-        #     mid[0] = mid[0].unsqueeze(1)
-        #     mid[1] = mid[1].unsqueeze(1)
-        #     mid[2] = mid[2].unsqueeze(1)
-        #     #mid = torch.cat((mid[0] ,mid[1] ,mid[2]),dim = -2)
-        #     if ob2 is None:
-        #         ob2=(torch.cat((mid[0] ,mid[1] ,mid[2]),dim = -2))
-        #     else:
-        #         ob2 = torch.cat((ob2,mid[0] ,mid[1] ,mid[2]),dim = -2)
+
 
         # ob2 = self.transformer(ob2)
         # ob2 = torch.mean(ob2, dim=1)
