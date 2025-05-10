@@ -27,5 +27,5 @@ with torch.no_grad():
     output=transformer(features)
 
 # 输出特征维度
-print(f"DINO特征维度: {features.shape}")
+print(f"DINO特征维度: {features.shape}")  # b,384
 print(f"transformer output:{output.shape}")
