@@ -881,11 +881,11 @@ class MAEExtractor(BaseFeaturesExtractor):
             for key in vt_torch:
                 vt_torch[key] = vt_torch[key].to('cuda')
         observations = self.mae_model.get_embeddings(vt_torch, eval=False, use_tactile=not self.vision_only_control)
-        
+        mid_frame = self.frame_stack // 2
         #batch_size = vt_torch['image'].shape[0]
         #vt_torch = torch.cat((vt_torch['image'],vt_torch['tactile1'],vt_torch['tactile2']),dim=1)
         obs_viso = vt_torch['image']
-        obs_viso = obs_viso[:,3:6,:,:]#obs_viso.reshape(batch_size*3*self.frame_stack,-1,70,70)   # 3:视 ，触，触
+        obs_viso = obs_viso[:,3*mid_frame-3:3*mid_frame,:,:]#obs_viso.reshape(batch_size*3*self.frame_stack,-1,70,70)   # 3:视 ，触，触
         obs_viso = self.dino_model(obs_viso)
         #obs_viso = obs_viso.reshape(batch_size , -1, self.dim_embeddings)
 
